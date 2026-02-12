@@ -20,6 +20,7 @@ A .NET tool that generates C# code from JSON schemas, with support for detecting
 ## Installation
 
 ```bash
+dotnet tool restore
 dotnet build
 ```
 
