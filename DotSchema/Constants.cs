@@ -83,4 +83,81 @@ public static class Constants
     {
         public const string SolutionPattern = "*.sln";
     }
+
+    /// <summary>
+    ///     Extracts a variant name from a schema filename.
+    ///     Handles various patterns:
+    ///     - "windows.schema.json" -> "Windows"
+    ///     - "windows.config.schema.json" -> "Windows"
+    ///     - "windows-config.json" -> "Windows"
+    ///     - "WindowsConfig.json" -> "Windows"
+    ///     - "my_config_windows.json" -> "Windows" (last segment before extension)
+    /// </summary>
+    public static string ExtractVariantName(string schemaPath)
+    {
+        var filename = Path.GetFileNameWithoutExtension(schemaPath);
+
+        // Remove common suffixes like ".schema", ".config", etc.
+        var suffixesToRemove = new[] { ".schema", ".config", "-schema", "-config", "_schema", "_config" };
+
+        foreach (var suffix in suffixesToRemove)
+        {
+            if (filename.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                filename = filename[..^suffix.Length];
+            }
+        }
+
+        // Split on common delimiters and take the first meaningful segment
+        var delimiters = new[] { '.', '-', '_' };
+        var parts = filename.Split(delimiters, StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length == 0)
+        {
+            return filename;
+        }
+
+        // Take the first part as the variant name
+        var variantName = parts[0];
+
+        // Handle PascalCase filenames (e.g., "WindowsConfig" -> "Windows")
+        // Only split on uppercase if the string is mixed case (not all uppercase)
+        var isAllUpperOrLower = variantName.All(c => !char.IsLetter(c) || char.IsUpper(c))
+                                || variantName.All(c => !char.IsLetter(c) || char.IsLower(c));
+
+        if (!isAllUpperOrLower && variantName.Length > 1)
+        {
+            // Look for a capital letter after the first character (indicates PascalCase boundary)
+            for (var i = 1; i < variantName.Length; i++)
+            {
+                if (char.IsUpper(variantName[i]))
+                {
+                    variantName = variantName[..i];
+
+                    break;
+                }
+            }
+        }
+
+        // Normalize to PascalCase
+        return ToPascalCase(variantName);
+    }
+
+    /// <summary>
+    ///     Converts a string to PascalCase (first letter uppercase, rest lowercase).
+    /// </summary>
+    private static string ToPascalCase(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return name;
+        }
+
+        if (name.Length == 1)
+        {
+            return char.ToUpperInvariant(name[0]).ToString();
+        }
+
+        return char.ToUpperInvariant(name[0]) + name[1..].ToLowerInvariant();
+    }
 }

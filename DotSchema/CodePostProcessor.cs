@@ -59,22 +59,13 @@ public static partial class CodePostProcessor
     {
         code = RemoveAdditionalPropertiesBoilerplate(code);
 
-        // Remove the root type class (it's variant-specific)
-        code = RemoveClassByName(code, rootTypeName);
+        // Collect all types to remove in a single set for single-pass removal
+        var typesToRemove = new HashSet<string>(variantSpecificTypes);
+        typesToRemove.UnionWith(conflictingTypes);
+        typesToRemove.Add(rootTypeName); // Remove the root type class (it's variant-specific)
 
-        // Remove variant-specific types from shared code
-        foreach (var typeName in variantSpecificTypes)
-        {
-            code = RemoveClassByName(code, typeName);
-            code = RemoveEnumByName(code, typeName);
-        }
-
-        // Remove conflicting types from shared code (they have different content per variant)
-        foreach (var typeName in conflictingTypes)
-        {
-            code = RemoveClassByName(code, typeName);
-            code = RemoveEnumByName(code, typeName);
-        }
+        // Remove all types in a single pass
+        code = RemoveTypesBatch(code, typesToRemove);
 
         // Make all classes sealed
         code = MakeClassesSealed(code);
@@ -91,12 +82,8 @@ public static partial class CodePostProcessor
     {
         code = RemoveAdditionalPropertiesBoilerplate(code);
 
-        // Remove shared types from variant-specific code
-        foreach (var typeName in sharedTypes)
-        {
-            code = RemoveClassByName(code, typeName);
-            code = RemoveEnumByName(code, typeName);
-        }
+        // Remove shared types from variant-specific code in a single pass
+        code = RemoveTypesBatch(code, sharedTypes);
 
         // Add I{RootType} interface to the root variant config class (if enabled)
         if (generateInterface && !string.IsNullOrEmpty(variant))
@@ -215,57 +202,117 @@ public static partial class CodePostProcessor
         return AdditionalPropertiesRegex().Replace(code, "");
     }
 
-    private static string RemoveClassByName(string code, string className)
+    /// <summary>
+    ///     Removes all specified types from the code in a single pass by finding all type boundaries
+    ///     first, then building the result string without the removed sections.
+    /// </summary>
+    private static string RemoveTypesBatch(string code, HashSet<string> typeNames)
     {
-        return RemoveTypeByName(code, className, false);
+        if (typeNames.Count == 0)
+        {
+            return code;
+        }
+
+        // Find all type definition ranges to remove
+        var rangesToRemove = new List<(int Start, int End)>();
+
+        foreach (var typeName in typeNames)
+        {
+            // Find as both class and enum
+            FindTypeRanges(code, typeName, "public partial class ", rangesToRemove);
+            FindTypeRanges(code, typeName, "public enum ", rangesToRemove);
+        }
+
+        if (rangesToRemove.Count == 0)
+        {
+            return code;
+        }
+
+        // Sort ranges by start position and merge overlapping ranges
+        rangesToRemove.Sort((a, b) => a.Start.CompareTo(b.Start));
+        var mergedRanges = MergeOverlappingRanges(rangesToRemove);
+
+        // Build result string by copying non-removed sections
+        var result = new System.Text.StringBuilder(code.Length);
+        var currentPos = 0;
+
+        foreach (var (start, end) in mergedRanges)
+        {
+            if (start > currentPos)
+            {
+                result.Append(code, currentPos, start - currentPos);
+            }
+
+            currentPos = end;
+        }
+
+        // Append remaining code after last removal
+        if (currentPos < code.Length)
+        {
+            result.Append(code, currentPos, code.Length - currentPos);
+        }
+
+        return result.ToString();
     }
 
-    private static string RemoveEnumByName(string code, string enumName)
-    {
-        return RemoveTypeByName(code, enumName, true);
-    }
-
-    private static string RemoveTypeByName(
+    /// <summary>
+    ///     Finds all occurrences of a type definition and adds their ranges to the list.
+    /// </summary>
+    private static void FindTypeRanges(
         string code,
         string typeName,
-        bool isEnum,
-        int remainingIterations = MaxRemoveIterations)
+        string typeKeyword,
+        List<(int Start, int End)> ranges)
     {
-        // Guard against infinite loops
-        if (remainingIterations <= 0)
-        {
-            return code;
-        }
-
-        // Find the start of the type definition (look for GeneratedCode attribute before the type)
-        var typeKeyword = isEnum ? "public enum " : "public partial class ";
         var searchPattern = typeKeyword + typeName;
+        var searchStart = 0;
 
-        var typeIndex = code.IndexOf(searchPattern, StringComparison.Ordinal);
-
-        if (typeIndex == -1)
+        while (searchStart < code.Length)
         {
-            return code;
-        }
+            var typeIndex = code.IndexOf(searchPattern, searchStart, StringComparison.Ordinal);
 
-        // Make sure we're matching the exact type name (not a prefix)
-        var afterName = typeIndex + searchPattern.Length;
-
-        if (afterName < code.Length)
-        {
-            var nextChar = code[afterName];
-
-            // Valid next characters: whitespace, newline, colon (for inheritance), open brace
-            if (char.IsLetterOrDigit(nextChar) || nextChar == '_')
+            if (typeIndex == -1)
             {
-                // This is a prefix match (e.g., "Config" matching "ConfigMetadata"), skip it
-                var remainingCode = code[(typeIndex + 1)..];
-                var laterMatch = RemoveTypeByName(remainingCode, typeName, isEnum, remainingIterations - 1);
+                break;
+            }
 
-                return code[..(typeIndex + 1)] + laterMatch;
+            // Make sure we're matching the exact type name (not a prefix)
+            var afterName = typeIndex + searchPattern.Length;
+
+            if (afterName < code.Length)
+            {
+                var nextChar = code[afterName];
+
+                // Valid next characters: whitespace, newline, colon (for inheritance), open brace
+                if (char.IsLetterOrDigit(nextChar) || nextChar == '_')
+                {
+                    // This is a prefix match (e.g., "Config" matching "ConfigMetadata"), skip it
+                    searchStart = typeIndex + 1;
+
+                    continue;
+                }
+            }
+
+            // Find the full range of this type definition
+            var range = GetTypeDefinitionRange(code, typeIndex);
+
+            if (range.HasValue)
+            {
+                ranges.Add(range.Value);
+                searchStart = range.Value.End;
+            }
+            else
+            {
+                searchStart = typeIndex + 1;
             }
         }
+    }
 
+    /// <summary>
+    ///     Gets the full range of a type definition including doc comments and attributes.
+    /// </summary>
+    private static (int Start, int End)? GetTypeDefinitionRange(string code, int typeIndex)
+    {
         // Find the start of the definition by looking backwards for preceding elements
         var definitionStart = typeIndex;
 
@@ -298,7 +345,7 @@ public static partial class CodePostProcessor
 
         if (braceStart == -1)
         {
-            return code;
+            return null;
         }
 
         var braceCount = 1;
@@ -318,10 +365,30 @@ public static partial class CodePostProcessor
             definitionEnd++;
         }
 
-        // Remove from definitionStart to definitionEnd
-        var result = code[..definitionStart] + code[definitionEnd..];
+        return (definitionStart, definitionEnd);
+    }
 
-        // Recursively remove if there are more instances
-        return RemoveTypeByName(result, typeName, isEnum, remainingIterations - 1);
+    /// <summary>
+    ///     Merges overlapping or adjacent ranges into a single list of non-overlapping ranges.
+    /// </summary>
+    private static List<(int Start, int End)> MergeOverlappingRanges(List<(int Start, int End)> sortedRanges)
+    {
+        var merged = new List<(int Start, int End)>();
+
+        foreach (var range in sortedRanges)
+        {
+            if (merged.Count == 0 || merged[^1].End < range.Start)
+            {
+                merged.Add(range);
+            }
+            else
+            {
+                // Extend the last range if overlapping
+                var last = merged[^1];
+                merged[^1] = (last.Start, Math.Max(last.End, range.End));
+            }
+        }
+
+        return merged;
     }
 }
