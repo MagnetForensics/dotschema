@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Magnet.Live2Json.SchemaGenerator;
+namespace DotSchema;
 
 /// <summary>
 ///     Post-processes generated C# code to clean up and transform type definitions.

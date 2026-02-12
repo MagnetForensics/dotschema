@@ -1,11 +1,11 @@
-using Magnet.Live2Json.SchemaGenerator.Analyzers;
+using DotSchema.Analyzers;
 
 using Microsoft.Extensions.Logging;
 
 using NJsonSchema;
 using NJsonSchema.CodeGeneration.CSharp;
 
-namespace Magnet.Live2Json.SchemaGenerator.Generators;
+namespace DotSchema.Generators;
 
 /// <summary>
 ///     Orchestrates the schema-to-C# code generation process.

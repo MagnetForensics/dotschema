@@ -1,7 +1,7 @@
 using CommandLine;
 
-using Magnet.Live2Json.SchemaGenerator;
-using Magnet.Live2Json.SchemaGenerator.Generators;
+using DotSchema;
+using DotSchema.Generators;
 
 using Microsoft.Extensions.Logging;
 

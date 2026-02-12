@@ -1,6 +1,6 @@
 using CommandLine;
 
-namespace Magnet.Live2Json.SchemaGenerator;
+namespace DotSchema;
 
 /// <summary>
 ///     Command line options for the schema generator.
