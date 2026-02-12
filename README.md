@@ -19,6 +19,21 @@ A .NET tool that generates C# code from JSON schemas, with support for detecting
 
 ## Installation
 
+### As a global tool
+
+```bash
+dotnet tool install --global DotSchema
+```
+
+### As a local tool
+
+```bash
+dotnet new tool-manifest # if you don't have one already
+dotnet tool install DotSchema
+```
+
+### From source
+
 ```bash
 dotnet tool restore
 dotnet build
@@ -27,6 +42,10 @@ dotnet build
 ## Usage
 
 ```bash
+# If installed as a tool
+dotschema [options]
+
+# If running from source
 dotnet run -- [options]
 ```
 
