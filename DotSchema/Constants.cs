@@ -95,7 +95,9 @@ public static class Constants
     /// </summary>
     public static string ExtractVariantName(string schemaPath)
     {
-        var filename = Path.GetFileNameWithoutExtension(schemaPath);
+        // Normalize path separators for cross-platform compatibility
+        var normalizedPath = schemaPath.Replace('\\', '/');
+        var filename = Path.GetFileNameWithoutExtension(normalizedPath);
 
         // Remove common suffixes like ".schema", ".config", etc.
         var suffixesToRemove = new[] { ".schema", ".config", "-schema", "-config", "_schema", "_config" };
