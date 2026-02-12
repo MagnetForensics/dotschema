@@ -1,13 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
 
-using Magnet.Live2Json.SchemaGenerator.Generators;
+using DotSchema.Generators;
 
 using Microsoft.Extensions.Logging;
 
 using NJsonSchema;
 
-namespace Magnet.Live2Json.SchemaGenerator.Analyzers;
+namespace DotSchema.Analyzers;
 
 /// <summary>
 ///     Result of schema analysis containing shared and variant-specific types.

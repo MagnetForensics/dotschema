@@ -1,4 +1,4 @@
-namespace Magnet.Live2Json.SchemaGenerator;
+namespace DotSchema;
 
 /// <summary>
 ///     Constants used throughout the schema generator.

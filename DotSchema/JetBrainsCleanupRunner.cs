@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
-namespace Magnet.Live2Json.SchemaGenerator;
+namespace DotSchema;
 
 /// <summary>
 ///     Runs JetBrains cleanup code tool on generated files.
@@ -22,7 +22,7 @@ public static class JetBrainsCleanupRunner
         var absolutePaths = filePaths.Select(Path.GetFullPath).ToList();
 
         // Get the solution directory (where .config/dotnet-tools.json and .sln are)
-        // Go up from Generated -> Magnet.Live2Json -> solution root
+        // Go up from Generated -> DotSchema -> solution root
         var solutionDir = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(absolutePaths[0])));
 
         if (solutionDir == null)

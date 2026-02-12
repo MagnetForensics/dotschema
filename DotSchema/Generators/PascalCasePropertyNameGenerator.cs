@@ -1,7 +1,7 @@
 using NJsonSchema;
 using NJsonSchema.CodeGeneration;
 
-namespace Magnet.Live2Json.SchemaGenerator.Generators;
+namespace DotSchema.Generators;
 
 /// <summary>
 ///     Converts snake_case property names to PascalCase.
