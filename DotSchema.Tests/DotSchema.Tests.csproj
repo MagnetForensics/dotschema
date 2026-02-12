@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="TestData\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="TestData\**\*" />
   </ItemGroup>
 
 </Project>
