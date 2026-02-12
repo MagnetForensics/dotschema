@@ -6,12 +6,28 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>default</LangVersion>
+
+        <!-- NuGet package settings -->
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>dotschema</ToolCommandName>
+        <PackageId>DotSchema</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>Magnet Forensics</Authors>
+        <Description>A .NET tool that generates C# code from JSON schemas, with support for detecting shared and variant-specific types.</Description>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <RepositoryUrl>https://github.com/MagnetForensics/dotschema</RepositoryUrl>
+        <PackageTags>json;schema;codegen;csharp;dotnet-tool</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="CommandLineParser" Version="2.9.1"/>
         <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.2"/>
         <PackageReference Include="NJsonSchema.CodeGeneration.CSharp" Version="11.3.2"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\README.md" Pack="true" PackagePath="\"/>
     </ItemGroup>
 
 </Project>

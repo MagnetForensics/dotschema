@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate tag
+        id: tag
+        run: |
+          $date = Get-Date -Format "yyyy.MM.dd"
+          $baseTag = "v$date"
+          $counter = 0
+          $tag = $baseTag
+
+          while (git tag -l $tag) {
+            $counter++
+            $tag = "$baseTag.$counter"
+          }
+
+          # Extract version without 'v' prefix for NuGet
+          $version = $tag.TrimStart('v')
+
+          echo "tag=$tag" >> $env:GITHUB_OUTPUT
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "Generated tag: $tag (version: $version)"
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.tag.outputs.tag }}
+          git push origin ${{ steps.tag.outputs.tag }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release --verbosity normal
+
+      - name: Pack NuGet
+        run: dotnet pack --no-build --configuration Release -p:Version=${{ steps.tag.outputs.version }} --output ./artifacts
+
+      - name: Publish Windows x64
+        run: dotnet publish DotSchema/DotSchema.csproj --configuration Release --runtime win-x64 --self-contained -p:PublishSingleFile=true -p:Version=${{ steps.tag.outputs.version }} --output ./artifacts/win-x64
+
+      - name: Publish Linux x64
+        run: dotnet publish DotSchema/DotSchema.csproj --configuration Release --runtime linux-x64 --self-contained -p:PublishSingleFile=true -p:Version=${{ steps.tag.outputs.version }} --output ./artifacts/linux-x64
+
+      - name: Publish macOS x64
+        run: dotnet publish DotSchema/DotSchema.csproj --configuration Release --runtime osx-x64 --self-contained -p:PublishSingleFile=true -p:Version=${{ steps.tag.outputs.version }} --output ./artifacts/osx-x64
+
+      - name: Publish macOS ARM64
+        run: dotnet publish DotSchema/DotSchema.csproj --configuration Release --runtime osx-arm64 --self-contained -p:PublishSingleFile=true -p:Version=${{ steps.tag.outputs.version }} --output ./artifacts/osx-arm64
+
+      - name: Zip artifacts
+        run: |
+          Compress-Archive -Path artifacts/win-x64/DotSchema.exe -DestinationPath artifacts/dotschema-win-x64-${{ steps.tag.outputs.tag }}.zip
+          Compress-Archive -Path artifacts/linux-x64/DotSchema -DestinationPath artifacts/dotschema-linux-x64-${{ steps.tag.outputs.tag }}.zip
+          Compress-Archive -Path artifacts/osx-x64/DotSchema -DestinationPath artifacts/dotschema-osx-x64-${{ steps.tag.outputs.tag }}.zip
+          Compress-Archive -Path artifacts/osx-arm64/DotSchema -DestinationPath artifacts/dotschema-osx-arm64-${{ steps.tag.outputs.tag }}.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: |
+            artifacts/*.nupkg
+            artifacts/*.zip
+          generate_release_notes: true
+
