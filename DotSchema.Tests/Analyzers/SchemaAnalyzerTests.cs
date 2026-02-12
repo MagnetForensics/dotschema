@@ -10,10 +10,10 @@ public class SchemaAnalyzerTests
 
     private static string GetTestDataPath(string filename)
     {
-        // Navigate from bin/Debug/net8.0 to TestData
+        // TestData files are copied to output directory
         var baseDir = AppContext.BaseDirectory;
 
-        return Path.Combine(baseDir, "..", "..", "..", "TestData", filename);
+        return Path.Combine(baseDir, "TestData", filename);
     }
 
     [Fact]
