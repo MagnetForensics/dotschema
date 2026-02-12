@@ -1,3 +1,5 @@
+using System.Reflection;
+
 using DotSchema.Analyzers;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,18 +10,28 @@ public class SchemaAnalyzerTests
 {
     private readonly SchemaAnalyzer _analyzer = new(NullLogger.Instance);
 
-    private static string GetTestDataPath(string filename)
+    private static SchemaInput LoadEmbeddedSchema(string filename)
     {
-        // TestData files are copied to output directory
-        var baseDir = AppContext.BaseDirectory;
+        var assembly = Assembly.GetExecutingAssembly();
+        var resourceName = $"DotSchema.Tests.TestData.{filename}";
 
-        return Path.Combine(baseDir, "TestData", filename);
+        using var stream = assembly.GetManifestResourceStream(resourceName)
+                           ?? throw new InvalidOperationException($"Embedded resource not found: {resourceName}");
+        using var reader = new StreamReader(stream);
+
+        return SchemaInput.FromContent(filename, reader.ReadToEnd());
     }
+
+    private static List<SchemaInput> GetTestSchemas() =>
+    [
+        LoadEmbeddedSchema("windows.schema.json"),
+        LoadEmbeddedSchema("linux.schema.json")
+    ];
 
     [Fact]
     public async Task AnalyzeAsync_DetectsSharedTypes()
     {
-        var schemas = new List<string> { GetTestDataPath("windows.schema.json"), GetTestDataPath("linux.schema.json") };
+        var schemas = GetTestSchemas();
 
         var result = await _analyzer.AnalyzeAsync(schemas, "Windows");
 
@@ -30,7 +42,7 @@ public class SchemaAnalyzerTests
     [Fact]
     public async Task AnalyzeAsync_DetectsConflictingTypes()
     {
-        var schemas = new List<string> { GetTestDataPath("windows.schema.json"), GetTestDataPath("linux.schema.json") };
+        var schemas = GetTestSchemas();
 
         var result = await _analyzer.AnalyzeAsync(schemas, "Windows");
 
@@ -41,7 +53,7 @@ public class SchemaAnalyzerTests
     [Fact]
     public async Task AnalyzeAsync_DetectsVariantSpecificTypes()
     {
-        var schemas = new List<string> { GetTestDataPath("windows.schema.json"), GetTestDataPath("linux.schema.json") };
+        var schemas = GetTestSchemas();
 
         var result = await _analyzer.AnalyzeAsync(schemas, "Windows");
 
@@ -52,7 +64,7 @@ public class SchemaAnalyzerTests
     [Fact]
     public async Task AnalyzeAsync_ExtractsRootTypeName()
     {
-        var schemas = new List<string> { GetTestDataPath("windows.schema.json"), GetTestDataPath("linux.schema.json") };
+        var schemas = GetTestSchemas();
 
         var result = await _analyzer.AnalyzeAsync(schemas, "Windows");
 
@@ -62,7 +74,7 @@ public class SchemaAnalyzerTests
     [Fact]
     public async Task AnalyzeAsync_DeterminesPrimarySchemaPath()
     {
-        var schemas = new List<string> { GetTestDataPath("windows.schema.json"), GetTestDataPath("linux.schema.json") };
+        var schemas = GetTestSchemas();
 
         var result = await _analyzer.AnalyzeAsync(schemas, "Linux");
 
@@ -72,7 +84,7 @@ public class SchemaAnalyzerTests
     [Fact]
     public async Task AnalyzeAsync_SingleSchema_ReturnsEmptySets()
     {
-        var schemas = new List<string> { GetTestDataPath("windows.schema.json") };
+        var schemas = new List<SchemaInput> { LoadEmbeddedSchema("windows.schema.json") };
 
         var result = await _analyzer.AnalyzeAsync(schemas, "Windows");
 
@@ -84,7 +96,7 @@ public class SchemaAnalyzerTests
     [Fact]
     public async Task AnalyzeAsync_ExcludesRootTypeFromSharedAndConflicting()
     {
-        var schemas = new List<string> { GetTestDataPath("windows.schema.json"), GetTestDataPath("linux.schema.json") };
+        var schemas = GetTestSchemas();
 
         var result = await _analyzer.AnalyzeAsync(schemas, "Windows");
 

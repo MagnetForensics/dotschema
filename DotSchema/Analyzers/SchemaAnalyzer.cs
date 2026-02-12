@@ -27,6 +27,25 @@ public sealed record SchemaAnalysisResult(
     string RootTypeName);
 
 /// <summary>
+///     Represents a schema input that can be either a file path or raw content.
+/// </summary>
+public sealed record SchemaInput
+{
+    public required string Name { get; init; }
+    public string? FilePath { get; init; }
+    public string? Content { get; init; }
+
+    public static SchemaInput FromFile(string filePath) =>
+        new() { Name = Path.GetFileName(filePath), FilePath = filePath };
+
+    public static SchemaInput FromContent(string name, string content) =>
+        new() { Name = name, Content = content };
+
+    public async Task<string> ReadContentAsync(CancellationToken cancellationToken = default) =>
+        Content ?? await File.ReadAllTextAsync(FilePath!, cancellationToken);
+}
+
+/// <summary>
 ///     Analyzes JSON schemas to determine shared vs variant-specific types.
 ///     Types are considered shared only if they have the same name AND same content hash.
 /// </summary>
@@ -44,27 +63,42 @@ public sealed class SchemaAnalyzer
     ///     Analyzes multiple schemas to determine which types are shared (exist in all with identical content)
     ///     vs variant-specific (exist in only some schemas or have different content).
     /// </summary>
-    public async Task<SchemaAnalysisResult> AnalyzeAsync(
+    public Task<SchemaAnalysisResult> AnalyzeAsync(
         List<string> schemaPaths,
         string currentVariant,
         CancellationToken cancellationToken = default)
     {
-        // Determine primary schema path
-        var primarySchemaPath = DeterminePrimarySchemaPath(schemaPaths, currentVariant);
+        var inputs = schemaPaths.Select(SchemaInput.FromFile).ToList();
+        return AnalyzeAsync(inputs, currentVariant, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Analyzes multiple schemas to determine which types are shared (exist in all with identical content)
+    ///     vs variant-specific (exist in only some schemas or have different content).
+    /// </summary>
+    public async Task<SchemaAnalysisResult> AnalyzeAsync(
+        List<SchemaInput> schemaInputs,
+        string currentVariant,
+        CancellationToken cancellationToken = default)
+    {
+        var schemaNames = schemaInputs.Select(s => s.Name).ToList();
+
+        // Determine primary schema name
+        var primarySchemaName = DeterminePrimarySchemaName(schemaNames, currentVariant);
 
         // Parse all schemas and extract type hashes
-        var (parsedSchemas, allSchemaTypes) = await ParseSchemasAsync(schemaPaths, cancellationToken);
+        var (parsedSchemas, allSchemaTypes) = await ParseSchemasAsync(schemaInputs, cancellationToken);
 
         // Extract root type name from the first schema's title
         var rootTypeName = parsedSchemas.Values.FirstOrDefault()?.Title ?? Constants.DefaultRootTypeName;
 
         // Get the primary schema (already parsed)
-        var primarySchema = parsedSchemas[primarySchemaPath];
+        var primarySchema = parsedSchemas[primarySchemaName];
 
         // With only one schema, we can't determine what's shared
-        if (schemaPaths.Count < 2)
+        if (schemaInputs.Count < 2)
         {
-            return new SchemaAnalysisResult([], [], [], primarySchemaPath, primarySchema, rootTypeName);
+            return new SchemaAnalysisResult([], [], [], primarySchemaName, primarySchema, rootTypeName);
         }
 
         // Categorize types as shared or conflicting
@@ -72,55 +106,54 @@ public sealed class SchemaAnalyzer
 
         // Variant-specific types = types in current variant schema that aren't shared or conflicting
         var variantTypes = DetermineVariantTypes(
-            schemaPaths,
+            schemaNames,
             currentVariant,
             parsedSchemas,
             sharedTypes,
             conflictingTypes,
             rootTypeName);
 
-        return new SchemaAnalysisResult(sharedTypes, variantTypes, conflictingTypes, primarySchemaPath, primarySchema, rootTypeName);
+        return new SchemaAnalysisResult(sharedTypes, variantTypes, conflictingTypes, primarySchemaName, primarySchema, rootTypeName);
     }
 
     /// <summary>
-    ///     Determines the primary schema path based on the current variant.
+    ///     Determines the primary schema name based on the current variant.
     /// </summary>
-    private static string DeterminePrimarySchemaPath(List<string> schemaPaths, string currentVariant)
+    private static string DeterminePrimarySchemaName(List<string> schemaNames, string currentVariant)
     {
         if (string.IsNullOrEmpty(currentVariant))
         {
-            return schemaPaths[0];
+            return schemaNames[0];
         }
 
-        var variantSchema = schemaPaths.FirstOrDefault(p => Path.GetFileName(p)
-                                                                .Contains(
-                                                                    currentVariant,
-                                                                    StringComparison.OrdinalIgnoreCase));
+        var variantSchema = schemaNames.FirstOrDefault(name => name.Contains(
+            currentVariant,
+            StringComparison.OrdinalIgnoreCase));
 
-        return variantSchema ?? schemaPaths[0];
+        return variantSchema ?? schemaNames[0];
     }
 
     /// <summary>
     ///     Parses all schemas and extracts type hashes.
     /// </summary>
     private async Task<(Dictionary<string, JsonSchema> parsedSchemas, List<Dictionary<string, string>> allSchemaTypes)>
-        ParseSchemasAsync(List<string> schemaPaths, CancellationToken cancellationToken)
+        ParseSchemasAsync(List<SchemaInput> schemaInputs, CancellationToken cancellationToken)
     {
         var parsedSchemas = new Dictionary<string, JsonSchema>();
         var allSchemaTypes = new List<Dictionary<string, string>>();
 
-        foreach (var schemaPath in schemaPaths)
+        foreach (var input in schemaInputs)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var schemaJson = await File.ReadAllTextAsync(schemaPath, cancellationToken);
+            var schemaJson = await input.ReadContentAsync(cancellationToken);
             var schema = await JsonSchema.FromJsonAsync(schemaJson, cancellationToken);
-            parsedSchemas[schemaPath] = schema;
+            parsedSchemas[input.Name] = schema;
 
             var types = ExtractTypeHashes(schema);
             allSchemaTypes.Add(types);
 
-            _logger.LogDebug("  {SchemaFile}: {TypeCount} types", Path.GetFileName(schemaPath), types.Count);
+            _logger.LogDebug("  {SchemaFile}: {TypeCount} types", input.Name, types.Count);
         }
 
         return (parsedSchemas, allSchemaTypes);
@@ -175,20 +208,19 @@ public sealed class SchemaAnalyzer
     ///     Determines variant-specific types (types not shared or conflicting).
     /// </summary>
     private HashSet<string> DetermineVariantTypes(
-        List<string> schemaPaths,
+        List<string> schemaNames,
         string currentVariant,
         Dictionary<string, JsonSchema> parsedSchemas,
         HashSet<string> sharedTypes,
         HashSet<string> conflictingTypes,
         string rootTypeName)
     {
-        var currentVariantSchemaPath = schemaPaths.FirstOrDefault(p => Path.GetFileName(p)
-                                                                           .Contains(
-                                                                               currentVariant,
-                                                                               StringComparison.OrdinalIgnoreCase))
-                                       ?? schemaPaths[0];
+        var currentVariantSchemaName = schemaNames.FirstOrDefault(name => name.Contains(
+                                                                       currentVariant,
+                                                                       StringComparison.OrdinalIgnoreCase))
+                                       ?? schemaNames[0];
 
-        var currentTypes = ExtractTypeHashes(parsedSchemas[currentVariantSchemaPath]);
+        var currentTypes = ExtractTypeHashes(parsedSchemas[currentVariantSchemaName]);
 
         var variantTypes = new HashSet<string>(currentTypes.Keys);
         variantTypes.ExceptWith(sharedTypes);
