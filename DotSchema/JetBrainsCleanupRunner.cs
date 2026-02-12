@@ -12,7 +12,10 @@ public static class JetBrainsCleanupRunner
     /// <summary>
     ///     Runs JetBrains cleanup on the specified files.
     /// </summary>
-    public static async Task RunAsync(IReadOnlyList<string> filePaths, ILogger logger)
+    public static async Task RunAsync(
+        IReadOnlyList<string> filePaths,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
     {
         if (filePaths.Count == 0)
         {
@@ -88,13 +91,19 @@ public static class JetBrainsCleanupRunner
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
 
-                await process.WaitForExitAsync();
+                await process.WaitForExitAsync(cancellationToken);
 
                 if (process.ExitCode != 0)
                 {
                     logger.LogWarning("jb cleanupcode exit code: {ExitCode}", process.ExitCode);
                 }
             }
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogWarning("jb cleanupcode was cancelled");
+
+            throw;
         }
         catch (Exception ex)
         {

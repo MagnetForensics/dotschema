@@ -16,12 +16,14 @@ namespace DotSchema.Analyzers;
 /// <param name="VariantTypes">Types unique to the current variant.</param>
 /// <param name="ConflictingTypes">Types that exist in multiple schemas but with different content (need variant prefix).</param>
 /// <param name="PrimarySchemaPath">Path to the primary schema for the current variant.</param>
+/// <param name="PrimarySchema">The parsed primary schema (avoids re-parsing).</param>
 /// <param name="RootTypeName">The root type name extracted from the schema's title field.</param>
 public sealed record SchemaAnalysisResult(
     HashSet<string> SharedTypes,
     HashSet<string> VariantTypes,
     HashSet<string> ConflictingTypes,
     string PrimarySchemaPath,
+    JsonSchema PrimarySchema,
     string RootTypeName);
 
 /// <summary>
@@ -44,21 +46,25 @@ public sealed class SchemaAnalyzer
     /// </summary>
     public async Task<SchemaAnalysisResult> AnalyzeAsync(
         List<string> schemaPaths,
-        string currentVariant)
+        string currentVariant,
+        CancellationToken cancellationToken = default)
     {
         // Determine primary schema path
         var primarySchemaPath = DeterminePrimarySchemaPath(schemaPaths, currentVariant);
 
         // Parse all schemas and extract type hashes
-        var (parsedSchemas, allSchemaTypes) = await ParseSchemasAsync(schemaPaths);
+        var (parsedSchemas, allSchemaTypes) = await ParseSchemasAsync(schemaPaths, cancellationToken);
 
         // Extract root type name from the first schema's title
         var rootTypeName = parsedSchemas.Values.FirstOrDefault()?.Title ?? Constants.DefaultRootTypeName;
 
+        // Get the primary schema (already parsed)
+        var primarySchema = parsedSchemas[primarySchemaPath];
+
         // With only one schema, we can't determine what's shared
         if (schemaPaths.Count < 2)
         {
-            return new SchemaAnalysisResult([], [], [], primarySchemaPath, rootTypeName);
+            return new SchemaAnalysisResult([], [], [], primarySchemaPath, primarySchema, rootTypeName);
         }
 
         // Categorize types as shared or conflicting
@@ -73,7 +79,7 @@ public sealed class SchemaAnalyzer
             conflictingTypes,
             rootTypeName);
 
-        return new SchemaAnalysisResult(sharedTypes, variantTypes, conflictingTypes, primarySchemaPath, rootTypeName);
+        return new SchemaAnalysisResult(sharedTypes, variantTypes, conflictingTypes, primarySchemaPath, primarySchema, rootTypeName);
     }
 
     /// <summary>
@@ -98,15 +104,17 @@ public sealed class SchemaAnalyzer
     ///     Parses all schemas and extracts type hashes.
     /// </summary>
     private async Task<(Dictionary<string, JsonSchema> parsedSchemas, List<Dictionary<string, string>> allSchemaTypes)>
-        ParseSchemasAsync(List<string> schemaPaths)
+        ParseSchemasAsync(List<string> schemaPaths, CancellationToken cancellationToken)
     {
         var parsedSchemas = new Dictionary<string, JsonSchema>();
         var allSchemaTypes = new List<Dictionary<string, string>>();
 
         foreach (var schemaPath in schemaPaths)
         {
-            var schemaJson = await File.ReadAllTextAsync(schemaPath);
-            var schema = await JsonSchema.FromJsonAsync(schemaJson);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var schemaJson = await File.ReadAllTextAsync(schemaPath, cancellationToken);
+            var schema = await JsonSchema.FromJsonAsync(schemaJson, cancellationToken);
             parsedSchemas[schemaPath] = schema;
 
             var types = ExtractTypeHashes(schema);

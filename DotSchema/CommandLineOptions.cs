@@ -55,6 +55,25 @@ public sealed record GenerateOptions
         HelpText = "Skip running JetBrains code cleanup on generated files.")]
     public bool NoCleanup { get; init; } = false;
 
+    [Option(
+        "verbose",
+        Default = false,
+        HelpText = "Enable verbose output (debug-level logging).")]
+    public bool Verbose { get; init; } = false;
+
+    [Option(
+        'q',
+        "quiet",
+        Default = false,
+        HelpText = "Suppress non-error output.")]
+    public bool Quiet { get; init; } = false;
+
+    [Option(
+        "dry-run",
+        Default = false,
+        HelpText = "Preview what would be generated without writing files.")]
+    public bool DryRun { get; init; } = false;
+
     /// <summary>
     ///     Gets whether to generate the marker interface.
     /// </summary>

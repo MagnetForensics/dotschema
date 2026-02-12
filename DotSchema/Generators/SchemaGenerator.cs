@@ -15,7 +15,10 @@ public static class SchemaGenerator
     /// <summary>
     ///     Runs the schema generation process with the given options.
     /// </summary>
-    public static async Task<int> RunAsync(GenerateOptions options, ILogger logger)
+    public static async Task<int> RunAsync(
+        GenerateOptions options,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
     {
         var generatedFiles = new List<string>();
 
@@ -23,11 +26,11 @@ public static class SchemaGenerator
 
         if (options.Mode == GenerationMode.All)
         {
-            result = await GenerateAllAsync(options, generatedFiles, logger);
+            result = await GenerateAllAsync(options, generatedFiles, logger, cancellationToken);
         }
         else
         {
-            result = await GenerateAsync(options, generatedFiles, logger);
+            result = await GenerateAsync(options, generatedFiles, logger, cancellationToken);
         }
 
         if (result != 0)
@@ -38,7 +41,7 @@ public static class SchemaGenerator
         // Run JetBrains cleanup on all generated files at the end (if enabled)
         if (options.RunCleanup)
         {
-            await JetBrainsCleanupRunner.RunAsync(generatedFiles, logger);
+            await JetBrainsCleanupRunner.RunAsync(generatedFiles, logger, cancellationToken);
         }
 
         logger.LogInformation("Done!");
@@ -52,7 +55,8 @@ public static class SchemaGenerator
     private static async Task<int> GenerateAllAsync(
         GenerateOptions options,
         List<string> generatedFiles,
-        ILogger logger)
+        ILogger logger,
+        CancellationToken cancellationToken)
     {
         var schemas = options.SchemaPaths;
 
@@ -83,12 +87,11 @@ public static class SchemaGenerator
         }
 
         // Extract root type name from the first schema's title
-        var rootTypeName = await ExtractRootTypeNameAsync(schemas[0]);
+        var rootTypeName = await ExtractRootTypeNameAsync(schemas[0], cancellationToken);
 
         // Extract variant names from schema filenames (e.g., "windows.config.schema.json" -> "Windows")
         var variants = schemas
-                       .Select(s => Path.GetFileName(s).Split('.')[0])
-                       .Select(name => char.ToUpperInvariant(name[0]) + name[1..].ToLowerInvariant())
+                       .Select(Constants.ExtractVariantName)
                        .ToList();
 
         logger.LogInformation("Generating for variants: {Variants}", string.Join(", ", variants));
@@ -97,8 +100,12 @@ public static class SchemaGenerator
         if (options.GenerateInterface)
         {
             var interfacePath = Path.Combine(outputDir, Constants.GetInterfaceFileName(rootTypeName));
-            await GenerateInterfaceAsync(interfacePath, rootTypeName, variants, options.Namespace, logger);
-            generatedFiles.Add(interfacePath);
+            await GenerateInterfaceAsync(interfacePath, rootTypeName, variants, options.Namespace, options.DryRun, logger, cancellationToken);
+
+            if (!options.DryRun)
+            {
+                generatedFiles.Add(interfacePath);
+            }
         }
 
         // Generate shared types first (no variant - shared types shouldn't be variant-prefixed)
@@ -109,7 +116,7 @@ public static class SchemaGenerator
             Output = Path.Combine(outputDir, Constants.GetSharedFileName(rootTypeName))
         };
 
-        var result = await GenerateAsync(sharedOptions, generatedFiles, logger);
+        var result = await GenerateAsync(sharedOptions, generatedFiles, logger, cancellationToken);
 
         if (result != 0)
         {
@@ -119,6 +126,8 @@ public static class SchemaGenerator
         // Generate variant-specific types for each variant
         foreach (var variant in variants)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var variantOptions = options with
             {
                 Mode = GenerationMode.Variant,
@@ -126,7 +135,7 @@ public static class SchemaGenerator
                 Output = Path.Combine(outputDir, Constants.GetVariantFileName(variant, rootTypeName))
             };
 
-            result = await GenerateAsync(variantOptions, generatedFiles, logger);
+            result = await GenerateAsync(variantOptions, generatedFiles, logger, cancellationToken);
 
             if (result != 0)
             {
@@ -140,10 +149,12 @@ public static class SchemaGenerator
     /// <summary>
     ///     Extracts the root type name from a schema file's title field.
     /// </summary>
-    private static async Task<string> ExtractRootTypeNameAsync(string schemaPath)
+    private static async Task<string> ExtractRootTypeNameAsync(
+        string schemaPath,
+        CancellationToken cancellationToken)
     {
-        var schemaJson = await File.ReadAllTextAsync(schemaPath);
-        var schema = await JsonSchema.FromJsonAsync(schemaJson);
+        var schemaJson = await File.ReadAllTextAsync(schemaPath, cancellationToken);
+        var schema = await JsonSchema.FromJsonAsync(schemaJson, cancellationToken);
 
         return schema.Title ?? Constants.DefaultRootTypeName;
     }
@@ -156,7 +167,9 @@ public static class SchemaGenerator
         string rootTypeName,
         List<string> variants,
         string targetNamespace,
-        ILogger logger)
+        bool dryRun,
+        ILogger logger,
+        CancellationToken cancellationToken)
     {
         var interfaceName = Constants.GetInterfaceName(rootTypeName);
         var implementers = string.Join(", ", variants.Select(v => $"{v}{rootTypeName}"));
@@ -172,8 +185,15 @@ public static class SchemaGenerator
 
             """;
 
-        logger.LogInformation("Writing {InterfaceName} interface to: {OutputPath}", interfaceName, outputPath);
-        await File.WriteAllTextAsync(outputPath, interfaceCode);
+        if (dryRun)
+        {
+            logger.LogInformation("[DRY RUN] Would write {InterfaceName} interface to: {OutputPath}", interfaceName, outputPath);
+        }
+        else
+        {
+            logger.LogInformation("Writing {InterfaceName} interface to: {OutputPath}", interfaceName, outputPath);
+            await File.WriteAllTextAsync(outputPath, interfaceCode, cancellationToken);
+        }
     }
 
     /// <summary>
@@ -182,7 +202,8 @@ public static class SchemaGenerator
     public static async Task<int> GenerateAsync(
         GenerateOptions options,
         List<string> generatedFiles,
-        ILogger logger)
+        ILogger logger,
+        CancellationToken cancellationToken = default)
     {
         // Validate schema count for shared/variant modes
         var schemas = options.SchemaPaths;
@@ -209,7 +230,7 @@ public static class SchemaGenerator
 
         // Analyze schemas to detect shared vs variant-specific types
         var analyzer = new SchemaAnalyzer(logger);
-        var analysisResult = await analyzer.AnalyzeAsync(schemas, options.Variant);
+        var analysisResult = await analyzer.AnalyzeAsync(schemas, options.Variant, cancellationToken);
 
         logger.LogInformation(
             "Detected {SharedCount} shared types, {ConflictingCount} conflicting types, {VariantCount} variant-specific types",
@@ -217,15 +238,12 @@ public static class SchemaGenerator
             analysisResult.ConflictingTypes.Count,
             analysisResult.VariantTypes.Count);
 
-        // Generate code from the primary schema
+        // Generate code from the primary schema (already parsed by analyzer)
         logger.LogInformation(
             "Generating {Mode} types for {Variant} from: {SchemaPath}",
             options.Mode,
             options.Variant,
             analysisResult.PrimarySchemaPath);
-
-        var schemaJson = await File.ReadAllTextAsync(analysisResult.PrimarySchemaPath);
-        var schema = await JsonSchema.FromJsonAsync(schemaJson);
 
         var settings = new CSharpGeneratorSettings
         {
@@ -244,7 +262,7 @@ public static class SchemaGenerator
                 analysisResult.ConflictingTypes)
         };
 
-        var generator = new CSharpGenerator(schema, settings);
+        var generator = new CSharpGenerator(analysisResult.PrimarySchema, settings);
         var code = generator.GenerateFile();
 
         // Post-process the generated code (type renaming is already done by CleanTypeNameGenerator)
@@ -258,18 +276,26 @@ public static class SchemaGenerator
             analysisResult.RootTypeName,
             options.GenerateInterface);
 
-        // Ensure output directory exists
-        var outputDir = Path.GetDirectoryName(options.OutputPath);
-
-        if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
+        if (options.DryRun)
         {
-            Directory.CreateDirectory(outputDir);
+            logger.LogInformation("[DRY RUN] Would write generated code to: {OutputPath}", options.OutputPath);
+            logger.LogDebug("Generated code preview:\n{Code}", code[..Math.Min(code.Length, 500)] + (code.Length > 500 ? "\n..." : ""));
         }
+        else
+        {
+            // Ensure output directory exists
+            var outputDir = Path.GetDirectoryName(options.OutputPath);
 
-        logger.LogInformation("Writing generated code to: {OutputPath}", options.OutputPath);
-        await File.WriteAllTextAsync(options.OutputPath, code);
+            if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
+            {
+                Directory.CreateDirectory(outputDir);
+            }
 
-        generatedFiles.Add(options.OutputPath);
+            logger.LogInformation("Writing generated code to: {OutputPath}", options.OutputPath);
+            await File.WriteAllTextAsync(options.OutputPath, code, cancellationToken);
+
+            generatedFiles.Add(options.OutputPath);
+        }
 
         return 0;
     }
