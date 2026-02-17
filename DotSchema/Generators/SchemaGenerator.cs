@@ -38,12 +38,6 @@ public static class SchemaGenerator
             return result;
         }
 
-        // Run JetBrains cleanup on all generated files at the end (if enabled)
-        if (options.RunCleanup)
-        {
-            await JetBrainsCleanupRunner.RunAsync(generatedFiles, logger, cancellationToken).ConfigureAwait(false);
-        }
-
         logger.LogInformation("Done!");
 
         return 0;
