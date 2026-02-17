@@ -122,18 +122,32 @@ public static class CodePostProcessor
     private static CompilationUnitSyntax MakeClassesSealed(CompilationUnitSyntax root)
     {
         // Find all base class names (classes that are inherited from)
+        // Handles both simple names (BaseClass) and generic names (BaseClass<T>)
         var baseClasses = root.DescendantNodes()
                               .OfType<ClassDeclarationSyntax>()
                               .Where(c => c.BaseList != null)
                               .SelectMany(c => c.BaseList!.Types)
-                              .Select(t => t.Type)
-                              .OfType<IdentifierNameSyntax>()
-                              .Select(i => i.Identifier.Text)
+                              .Select(t => GetBaseTypeName(t.Type))
+                              .OfType<string>()
                               .ToHashSet();
 
         var rewriter = new SealClassesRewriter(baseClasses);
 
         return (CompilationUnitSyntax) rewriter.Visit(root);
+    }
+
+    /// <summary>
+    ///     Extracts the type name from a base type syntax node.
+    ///     Handles both simple names (BaseClass) and generic names (BaseClass&lt;T&gt;).
+    /// </summary>
+    private static string? GetBaseTypeName(TypeSyntax type)
+    {
+        return type switch
+        {
+            IdentifierNameSyntax id => id.Identifier.Text,
+            GenericNameSyntax gen => gen.Identifier.Text,
+            _ => null
+        };
     }
 
     /// <summary>
