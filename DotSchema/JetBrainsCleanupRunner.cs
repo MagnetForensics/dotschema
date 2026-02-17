@@ -24,22 +24,12 @@ public static class JetBrainsCleanupRunner
 
         var absolutePaths = filePaths.Select(Path.GetFullPath).ToList();
 
-        // Get the solution directory (where .config/dotnet-tools.json and .sln are)
-        // Go up from Generated -> DotSchema -> solution root
-        var solutionDir = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(absolutePaths[0])));
+        // Find solution directory by walking up from the first file
+        var (solutionDir, slnFile) = FindSolutionDirectory(absolutePaths[0]);
 
-        if (solutionDir == null)
+        if (solutionDir == null || slnFile == null)
         {
-            logger.LogWarning("Could not determine solution directory for jb cleanupcode");
-
-            return;
-        }
-
-        var slnFile = Directory.GetFiles(solutionDir, Constants.FilePatterns.SolutionPattern).FirstOrDefault();
-
-        if (slnFile == null)
-        {
-            logger.LogWarning("No .sln file found in {SolutionDir}", solutionDir);
+            logger.LogWarning("Could not find solution directory containing .sln file");
 
             return;
         }
@@ -91,7 +81,7 @@ public static class JetBrainsCleanupRunner
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
 
-                await process.WaitForExitAsync(cancellationToken);
+                await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
 
                 if (process.ExitCode != 0)
                 {
@@ -110,5 +100,28 @@ public static class JetBrainsCleanupRunner
             // jb tool not available, skip formatting
             logger.LogWarning("jb cleanupcode failed: {Message}", ex.Message);
         }
+    }
+
+    /// <summary>
+    ///     Walks up the directory tree from the starting path to find a directory containing a .sln file.
+    /// </summary>
+    /// <returns>A tuple of (solution directory, solution file path) or (null, null) if not found.</returns>
+    private static (string? SolutionDir, string? SlnFile) FindSolutionDirectory(string startPath)
+    {
+        var dir = Path.GetDirectoryName(startPath);
+
+        while (dir != null)
+        {
+            var slnFiles = Directory.GetFiles(dir, Constants.FilePatterns.SolutionPattern);
+
+            if (slnFiles.Length > 0)
+            {
+                return (dir, slnFiles[0]);
+            }
+
+            dir = Path.GetDirectoryName(dir);
+        }
+
+        return (null, null);
     }
 }
