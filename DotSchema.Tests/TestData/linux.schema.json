@@ -17,21 +17,31 @@
     "SharedType": {
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
-        "value": { "type": "integer" }
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        }
       }
     },
     "ProcessConfig": {
       "type": "object",
       "properties": {
-        "exe_path": { "type": "string" },
-        "systemd_unit": { "type": "string" }
+        "exe_path": {
+          "type": "string"
+        },
+        "systemd_unit": {
+          "type": "string"
+        }
       }
     },
     "LinuxOnlyType": {
       "type": "object",
       "properties": {
-        "systemd": { "type": "string" }
+        "systemd": {
+          "type": "string"
+        }
       }
     }
   }

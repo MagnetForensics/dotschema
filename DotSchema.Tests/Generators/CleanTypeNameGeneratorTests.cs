@@ -38,7 +38,7 @@ public class CleanTypeNameGeneratorTests
     [Fact]
     public void Generate_RenamesRootTypeWithVariant()
     {
-        var generator = new CleanTypeNameGenerator("Windows", "Config", []);
+        var generator = new CleanTypeNameGenerator("Windows", "Config", new HashSet<string>());
         var schema = new JsonSchema();
 
         var result = generator.Generate(schema, "Config", []);
