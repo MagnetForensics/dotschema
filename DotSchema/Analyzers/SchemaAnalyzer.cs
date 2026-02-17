@@ -443,7 +443,7 @@ public sealed class SchemaAnalyzer
         {
             if (propSchema.AnyOf.Count > 0 || propSchema.OneOf.Count > 0)
             {
-                var pascalCaseName = char.ToUpperInvariant(propName[0]) + propName[1..];
+                var pascalCaseName = char.ToUpperInvariant(propName[0]) + (propName.Length > 1 ? propName[1..] : "");
                 var typeName = _typeNameGenerator.Generate(propSchema, pascalCaseName, []);
                 types[typeName] = ComputeSchemaHash(propSchema);
             }
