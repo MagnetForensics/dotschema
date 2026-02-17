@@ -1,9 +1,10 @@
 using CommandLine;
 
-using DotSchema;
 using DotSchema.Generators;
 
 using Microsoft.Extensions.Logging;
+
+namespace DotSchema;
 
 public static class Program
 {
@@ -19,9 +20,11 @@ public static class Program
     private static async Task<int> RunAsync(GenerateOptions options)
     {
         // Determine log level based on verbose/quiet flags
-        var logLevel = options.Verbose ? LogLevel.Debug
-                       : options.Quiet ? LogLevel.Error
-                                        : LogLevel.Information;
+        var logLevel = options.Verbose
+            ? LogLevel.Debug
+            : options.Quiet
+                ? LogLevel.Error
+                : LogLevel.Information;
 
         using var loggerFactory = LoggerFactory.Create(builder =>
         {

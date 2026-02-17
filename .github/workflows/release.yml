@@ -46,7 +46,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Restore dependencies
         run: dotnet restore
@@ -79,6 +79,9 @@ jobs:
           Compress-Archive -Path artifacts/osx-x64/DotSchema -DestinationPath artifacts/dotschema-osx-x64-${{ steps.tag.outputs.tag }}.zip
           Compress-Archive -Path artifacts/osx-arm64/DotSchema -DestinationPath artifacts/dotschema-osx-arm64-${{ steps.tag.outputs.tag }}.zip
 
+      - name: Push to Azure Artifacts
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.AZURE_ARTIFACTS_PAT }} --source https://pkgs.dev.azure.com/gauss-dev/Magnet/_packaging/Engineering/nuget/v3/index.json
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -87,4 +90,3 @@ jobs:
             artifacts/*.nupkg
             artifacts/*.zip
           generate_release_notes: true
-

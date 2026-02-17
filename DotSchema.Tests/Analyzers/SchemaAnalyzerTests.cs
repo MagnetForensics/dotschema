@@ -17,16 +17,16 @@ public class SchemaAnalyzerTests
 
         using var stream = assembly.GetManifestResourceStream(resourceName)
                            ?? throw new InvalidOperationException($"Embedded resource not found: {resourceName}");
+
         using var reader = new StreamReader(stream);
 
         return SchemaInput.FromContent(filename, reader.ReadToEnd());
     }
 
-    private static List<SchemaInput> GetTestSchemas() =>
-    [
-        LoadEmbeddedSchema("windows.schema.json"),
-        LoadEmbeddedSchema("linux.schema.json")
-    ];
+    private static List<SchemaInput> GetTestSchemas()
+    {
+        return [LoadEmbeddedSchema("windows.schema.json"), LoadEmbeddedSchema("linux.schema.json")];
+    }
 
     [Fact]
     public async Task AnalyzeAsync_DetectsSharedTypes()

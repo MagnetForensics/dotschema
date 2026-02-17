@@ -17,21 +17,31 @@
     "SharedType": {
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
-        "value": { "type": "integer" }
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        }
       }
     },
     "ProcessConfig": {
       "type": "object",
       "properties": {
-        "exe_path": { "type": "string" },
-        "registry_key": { "type": "string" }
+        "exe_path": {
+          "type": "string"
+        },
+        "registry_key": {
+          "type": "string"
+        }
       }
     },
     "WindowsOnlyType": {
       "type": "object",
       "properties": {
-        "registry": { "type": "string" }
+        "registry": {
+          "type": "string"
+        }
       }
     }
   }
