@@ -2,6 +2,8 @@ namespace DotSchema.Tests;
 
 public class CodePostProcessorTests
 {
+    private static readonly HashSet<string> EmptySet = [];
+
     [Fact]
     public void Process_SharedMode_RemovesVariantSpecificTypes()
     {
@@ -25,9 +27,9 @@ public class CodePostProcessorTests
             code,
             GenerationMode.Shared,
             "",
-            [],
+            EmptySet,
             variantTypes,
-            [],
+            EmptySet,
             "Config");
 
         Assert.Contains("SharedType", result);
@@ -57,8 +59,8 @@ public class CodePostProcessorTests
             code,
             GenerationMode.Shared,
             "",
-            [],
-            [],
+            EmptySet,
+            EmptySet,
             conflictingTypes,
             "Config");
 
@@ -90,8 +92,8 @@ public class CodePostProcessorTests
             GenerationMode.Variant,
             "Windows",
             sharedTypes,
-            [],
-            [],
+            EmptySet,
+            EmptySet,
             "Config");
 
         Assert.DoesNotContain("public sealed class SharedType", result);
@@ -114,11 +116,10 @@ public class CodePostProcessorTests
             code,
             GenerationMode.Variant,
             "Windows",
-            [],
-            [],
-            [],
-            "Config",
-            true);
+            EmptySet,
+            EmptySet,
+            EmptySet,
+            "Config");
 
         Assert.Contains("WindowsConfig : IConfig", result);
     }
@@ -139,9 +140,9 @@ public class CodePostProcessorTests
             code,
             GenerationMode.Variant,
             "Windows",
-            [],
-            [],
-            [],
+            EmptySet,
+            EmptySet,
+            EmptySet,
             "Config",
             false);
 
@@ -164,9 +165,9 @@ public class CodePostProcessorTests
             code,
             GenerationMode.All,
             "",
-            [],
-            [],
-            [],
+            EmptySet,
+            EmptySet,
+            EmptySet,
             "Config");
 
         Assert.Contains("public sealed class MyType", result);

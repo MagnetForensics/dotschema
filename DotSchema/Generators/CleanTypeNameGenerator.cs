@@ -10,7 +10,7 @@ namespace DotSchema.Generators;
 /// </summary>
 public sealed class CleanTypeNameGenerator : ITypeNameGenerator
 {
-    private readonly HashSet<string> _conflictingTypes;
+    private readonly IReadOnlySet<string> _conflictingTypes;
     private readonly string _rootTypeName;
     private readonly string? _variant;
 
@@ -20,7 +20,7 @@ public sealed class CleanTypeNameGenerator : ITypeNameGenerator
     public CleanTypeNameGenerator()
     {
         _variant = null;
-        _conflictingTypes = [];
+        _conflictingTypes = new HashSet<string>();
         _rootTypeName = Constants.DefaultRootTypeName;
     }
 
@@ -28,11 +28,11 @@ public sealed class CleanTypeNameGenerator : ITypeNameGenerator
     ///     Creates a generator that renames the root type to "{variant}{rootTypeName}"
     ///     and prefixes conflicting types with the variant name.
     /// </summary>
-    public CleanTypeNameGenerator(string variant, string rootTypeName, HashSet<string>? conflictingTypes = null)
+    public CleanTypeNameGenerator(string variant, string rootTypeName, IReadOnlySet<string>? conflictingTypes = null)
     {
         _variant = variant;
         _rootTypeName = rootTypeName;
-        _conflictingTypes = conflictingTypes ?? [];
+        _conflictingTypes = conflictingTypes ?? new HashSet<string>();
     }
 
     public string Generate(JsonSchema schema, string? typeNameHint, IEnumerable<string> reservedTypeNames)

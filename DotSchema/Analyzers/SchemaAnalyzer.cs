@@ -19,9 +19,9 @@ namespace DotSchema.Analyzers;
 /// <param name="PrimarySchema">The parsed primary schema (avoids re-parsing).</param>
 /// <param name="RootTypeName">The root type name extracted from the schema's title field.</param>
 public sealed record SchemaAnalysisResult(
-    HashSet<string> SharedTypes,
-    HashSet<string> VariantTypes,
-    HashSet<string> ConflictingTypes,
+    IReadOnlySet<string> SharedTypes,
+    IReadOnlySet<string> VariantTypes,
+    IReadOnlySet<string> ConflictingTypes,
     string PrimarySchemaPath,
     JsonSchema PrimarySchema,
     string RootTypeName);
@@ -35,14 +35,20 @@ public sealed record SchemaInput
     public string? FilePath { get; init; }
     public string? Content { get; init; }
 
-    public static SchemaInput FromFile(string filePath) =>
-        new() { Name = Path.GetFileName(filePath), FilePath = filePath };
+    public static SchemaInput FromFile(string filePath)
+    {
+        return new SchemaInput { Name = Path.GetFileName(filePath), FilePath = filePath };
+    }
 
-    public static SchemaInput FromContent(string name, string content) =>
-        new() { Name = name, Content = content };
+    public static SchemaInput FromContent(string name, string content)
+    {
+        return new SchemaInput { Name = name, Content = content };
+    }
 
-    public async Task<string> ReadContentAsync(CancellationToken cancellationToken = default) =>
-        Content ?? await File.ReadAllTextAsync(FilePath!, cancellationToken);
+    public async Task<string> ReadContentAsync(CancellationToken cancellationToken = default)
+    {
+        return Content ?? await File.ReadAllTextAsync(FilePath!, cancellationToken).ConfigureAwait(false);
+    }
 }
 
 /// <summary>
@@ -69,6 +75,7 @@ public sealed class SchemaAnalyzer
         CancellationToken cancellationToken = default)
     {
         var inputs = schemaPaths.Select(SchemaInput.FromFile).ToList();
+
         return AnalyzeAsync(inputs, currentVariant, cancellationToken);
     }
 
@@ -87,7 +94,8 @@ public sealed class SchemaAnalyzer
         var primarySchemaName = DeterminePrimarySchemaName(schemaNames, currentVariant);
 
         // Parse all schemas and extract type hashes
-        var (parsedSchemas, allSchemaTypes) = await ParseSchemasAsync(schemaInputs, cancellationToken);
+        var (parsedSchemas, allSchemaTypes) = await ParseSchemasAsync(schemaInputs, cancellationToken)
+            .ConfigureAwait(false);
 
         // Extract root type name from the first schema's title
         var rootTypeName = parsedSchemas.Values.FirstOrDefault()?.Title ?? Constants.DefaultRootTypeName;
@@ -98,7 +106,13 @@ public sealed class SchemaAnalyzer
         // With only one schema, we can't determine what's shared
         if (schemaInputs.Count < 2)
         {
-            return new SchemaAnalysisResult([], [], [], primarySchemaName, primarySchema, rootTypeName);
+            return new SchemaAnalysisResult(
+                new HashSet<string>(),
+                new HashSet<string>(),
+                new HashSet<string>(),
+                primarySchemaName,
+                primarySchema,
+                rootTypeName);
         }
 
         // Categorize types as shared or conflicting
@@ -113,7 +127,13 @@ public sealed class SchemaAnalyzer
             conflictingTypes,
             rootTypeName);
 
-        return new SchemaAnalysisResult(sharedTypes, variantTypes, conflictingTypes, primarySchemaName, primarySchema, rootTypeName);
+        return new SchemaAnalysisResult(
+            sharedTypes,
+            variantTypes,
+            conflictingTypes,
+            primarySchemaName,
+            primarySchema,
+            rootTypeName);
     }
 
     /// <summary>
@@ -127,8 +147,8 @@ public sealed class SchemaAnalyzer
         }
 
         var variantSchema = schemaNames.FirstOrDefault(name => name.Contains(
-            currentVariant,
-            StringComparison.OrdinalIgnoreCase));
+                                                           currentVariant,
+                                                           StringComparison.OrdinalIgnoreCase));
 
         return variantSchema ?? schemaNames[0];
     }
@@ -146,8 +166,8 @@ public sealed class SchemaAnalyzer
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var schemaJson = await input.ReadContentAsync(cancellationToken);
-            var schema = await JsonSchema.FromJsonAsync(schemaJson, cancellationToken);
+            var schemaJson = await input.ReadContentAsync(cancellationToken).ConfigureAwait(false);
+            var schema = await JsonSchema.FromJsonAsync(schemaJson, cancellationToken).ConfigureAwait(false);
             parsedSchemas[input.Name] = schema;
 
             var types = ExtractTypeHashes(schema);
@@ -216,8 +236,8 @@ public sealed class SchemaAnalyzer
         string rootTypeName)
     {
         var currentVariantSchemaName = schemaNames.FirstOrDefault(name => name.Contains(
-                                                                       currentVariant,
-                                                                       StringComparison.OrdinalIgnoreCase))
+                                                                      currentVariant,
+                                                                      StringComparison.OrdinalIgnoreCase))
                                        ?? schemaNames[0];
 
         var currentTypes = ExtractTypeHashes(parsedSchemas[currentVariantSchemaName]);
@@ -423,7 +443,7 @@ public sealed class SchemaAnalyzer
         {
             if (propSchema.AnyOf.Count > 0 || propSchema.OneOf.Count > 0)
             {
-                var pascalCaseName = char.ToUpperInvariant(propName[0]) + propName[1..];
+                var pascalCaseName = char.ToUpperInvariant(propName[0]) + (propName.Length > 1 ? propName[1..] : "");
                 var typeName = _typeNameGenerator.Generate(propSchema, pascalCaseName, []);
                 types[typeName] = ComputeSchemaHash(propSchema);
             }

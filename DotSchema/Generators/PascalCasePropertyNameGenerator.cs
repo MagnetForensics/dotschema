@@ -22,6 +22,9 @@ public sealed class PascalCasePropertyNameGenerator : IPropertyNameGenerator
 
         var parts = name.Split('_');
 
-        return string.Concat(parts.Select(p => string.IsNullOrEmpty(p) ? "" : char.ToUpperInvariant(p[0]) + p[1..]));
+        return string.Concat(
+            parts.Select(p => string.IsNullOrEmpty(p)
+                             ? ""
+                             : char.ToUpperInvariant(p[0]) + (p.Length > 1 ? p[1..] : "")));
     }
 }
