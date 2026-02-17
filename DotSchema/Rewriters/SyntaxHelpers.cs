@@ -25,10 +25,10 @@ internal static class SyntaxHelpers
     }
 
     /// <summary>
-    ///     Gets all base class names from a compilation unit.
-    ///     These are classes that other classes inherit from.
+    ///     Gets all base type names (classes and interfaces) from a compilation unit.
+    ///     These are types that other classes inherit from or implement.
     /// </summary>
-    public static HashSet<string> GetBaseClassNames(CompilationUnitSyntax root)
+    public static HashSet<string> GetBaseTypeNames(CompilationUnitSyntax root)
     {
         return root.DescendantNodes()
                    .OfType<ClassDeclarationSyntax>()

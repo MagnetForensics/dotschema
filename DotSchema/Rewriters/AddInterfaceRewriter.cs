@@ -36,8 +36,8 @@ internal sealed class AddInterfaceRewriter(string className, string interfaceNam
             return visited.WithBaseList(baseList);
         }
 
-        // Existing base list - prepend interface
-        var newTypes = visited.BaseList.Types.Insert(0, interfaceType);
+        // Existing base list - append interface (C# convention: base class first, then interfaces)
+        var newTypes = visited.BaseList.Types.Add(interfaceType);
 
         return visited.WithBaseList(visited.BaseList.WithTypes(newTypes));
     }
