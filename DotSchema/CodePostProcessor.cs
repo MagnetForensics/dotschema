@@ -1,8 +1,8 @@
+using DotSchema.Rewriters;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-
-using DotSchema.Rewriters;
 
 namespace DotSchema;
 
@@ -119,7 +119,8 @@ public static class CodePostProcessor
     }
 
     /// <summary>
-    ///     Converts partial classes to sealed classes, except for base classes that are inherited from.
+    ///     Converts partial classes to sealed classes.
+    ///     Does not add sealed to: base classes (inherited from), abstract classes, or static classes.
     /// </summary>
     private static CompilationUnitSyntax MakeClassesSealed(CompilationUnitSyntax root)
     {

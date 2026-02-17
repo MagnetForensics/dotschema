@@ -37,4 +37,3 @@ internal sealed class RemoveAdditionalPropertiesRewriter : CSharpSyntaxRewriter
         return base.VisitPropertyDeclaration(node);
     }
 }
-

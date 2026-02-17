@@ -26,12 +26,11 @@ internal sealed class AddInterfaceRewriter(string className, string interfaceNam
         if (visited.BaseList == null)
         {
             // No existing base list - create one with proper spacing
-            var baseList = SyntaxFactory.BaseList(
-                    SyntaxFactory.SingletonSeparatedList<BaseTypeSyntax>(interfaceType))
-                .WithColonToken(
-                    SyntaxFactory.Token(SyntaxKind.ColonToken)
-                                 .WithLeadingTrivia(SyntaxFactory.Space)
-                                 .WithTrailingTrivia(SyntaxFactory.Space));
+            var baseList = SyntaxFactory.BaseList(SyntaxFactory.SingletonSeparatedList<BaseTypeSyntax>(interfaceType))
+                                        .WithColonToken(
+                                            SyntaxFactory.Token(SyntaxKind.ColonToken)
+                                                         .WithLeadingTrivia(SyntaxFactory.Space)
+                                                         .WithTrailingTrivia(SyntaxFactory.Space));
 
             return visited.WithBaseList(baseList);
         }
@@ -42,4 +41,3 @@ internal sealed class AddInterfaceRewriter(string className, string interfaceNam
         return visited.WithBaseList(visited.BaseList.WithTypes(newTypes));
     }
 }
-
