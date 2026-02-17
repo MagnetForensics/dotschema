@@ -28,6 +28,11 @@ internal static class SyntaxHelpers
     ///     Gets all base type names (classes and interfaces) from a compilation unit.
     ///     These are types that other classes inherit from or implement.
     /// </summary>
+    /// <remarks>
+    ///     This method only detects base types within the same compilation unit.
+    ///     Types inherited from external assemblies or other files are not detected.
+    ///     This is acceptable for NJsonSchema output since all generated code is in a single file.
+    /// </remarks>
     public static HashSet<string> GetBaseTypeNames(CompilationUnitSyntax root)
     {
         return root.DescendantNodes()
@@ -39,4 +44,3 @@ internal static class SyntaxHelpers
                    .ToHashSet();
     }
 }
-
