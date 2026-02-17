@@ -50,12 +50,6 @@ public sealed record GenerateOptions
     public bool NoInterface { get; init; } = false;
 
     [Option(
-        "no-cleanup",
-        Default = false,
-        HelpText = "Skip running JetBrains code cleanup on generated files.")]
-    public bool NoCleanup { get; init; } = false;
-
-    [Option(
         "verbose",
         Default = false,
         HelpText = "Enable verbose output (debug-level logging).")]
@@ -78,11 +72,6 @@ public sealed record GenerateOptions
     ///     Gets whether to generate the marker interface.
     /// </summary>
     public bool GenerateInterface => !NoInterface;
-
-    /// <summary>
-    ///     Gets whether to run JetBrains cleanup.
-    /// </summary>
-    public bool RunCleanup => !NoCleanup;
 
     /// <summary>
     ///     Gets the schema file paths as a list.

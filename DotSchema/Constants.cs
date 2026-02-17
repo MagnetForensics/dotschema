@@ -145,21 +145,4 @@ public static class Constants
 
         return char.ToUpperInvariant(name[0]) + name[1..].ToLowerInvariant();
     }
-
-    /// <summary>
-    ///     Constants for JetBrains cleanup tool.
-    /// </summary>
-    public static class JetBrains
-    {
-        public const string DotnetExecutable = "dotnet";
-        public const string CleanupProfile = "Built-in: Full Cleanup";
-    }
-
-    /// <summary>
-    ///     Constants for file patterns.
-    /// </summary>
-    public static class FilePatterns
-    {
-        public const string SolutionPattern = "*.sln";
-    }
 }
