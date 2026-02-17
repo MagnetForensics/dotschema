@@ -149,8 +149,11 @@ public static class CodePostProcessor
         return (CompilationUnitSyntax) rewriter.Visit(root);
     }
 
+#region Syntax Rewriters
+
     /// <summary>
     ///     Rewriter that removes AdditionalProperties field and property from classes.
+    ///     NJsonSchema generates these by default, but they add unnecessary complexity to DTOs.
     /// </summary>
     private sealed class RemoveAdditionalPropertiesRewriter : CSharpSyntaxRewriter
     {
@@ -178,7 +181,8 @@ public static class CodePostProcessor
     }
 
     /// <summary>
-    ///     Rewriter that converts partial classes to sealed classes (except base classes).
+    ///     Rewriter that converts partial classes to sealed classes.
+    ///     Base classes (those inherited from) are preserved as non-sealed to allow inheritance.
     /// </summary>
     private sealed class SealClassesRewriter(IReadOnlySet<string> baseClasses) : CSharpSyntaxRewriter
     {
@@ -224,7 +228,8 @@ public static class CodePostProcessor
     }
 
     /// <summary>
-    ///     Rewriter that adds an interface to a specific class.
+    ///     Rewriter that adds an interface to a specific class by name.
+    ///     Used to add marker interfaces (e.g., IConfig) to variant root types.
     /// </summary>
     private sealed class AddInterfaceRewriter(string className, string interfaceName) : CSharpSyntaxRewriter
     {
@@ -256,4 +261,6 @@ public static class CodePostProcessor
             return visited.WithBaseList(visited.BaseList.WithTypes(newTypes));
         }
     }
+
+#endregion
 }
