@@ -53,7 +53,7 @@ dotnet run -- [options]
 ### Options
 
 | Option           | Short | Required | Description                                                     |
-| ---------------- | ----- | -------- | --------------------------------------------------------------- |
+|------------------|-------|----------|-----------------------------------------------------------------|
 | `--schemas`      | `-s`  | Yes      | One or more JSON schema files to process                        |
 | `--output`       | `-o`  | Yes      | Output file path (Shared/Variant) or directory (All mode)       |
 | `--namespace`    | `-n`  | Yes      | Namespace for generated types                                   |
