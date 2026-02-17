@@ -7,6 +7,8 @@ namespace DotSchema.Rewriters;
 /// <summary>
 ///     Rewriter that removes AdditionalProperties field and property from classes.
 ///     NJsonSchema generates these by default, but they add unnecessary complexity to DTOs.
+///     Note: Associated attributes (e.g., [JsonExtensionData]) are implicitly removed
+///     when the property is removed, as they are part of the property's syntax node.
 /// </summary>
 internal sealed class RemoveAdditionalPropertiesRewriter : CSharpSyntaxRewriter
 {

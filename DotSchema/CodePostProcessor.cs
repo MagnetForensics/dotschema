@@ -123,8 +123,8 @@ public static class CodePostProcessor
     /// </summary>
     private static CompilationUnitSyntax MakeClassesSealed(CompilationUnitSyntax root)
     {
-        // Find all base class names (classes that are inherited from)
-        var baseClasses = SyntaxHelpers.GetBaseClassNames(root);
+        // Find all base type names (classes/interfaces that are inherited from or implemented)
+        var baseClasses = SyntaxHelpers.GetBaseTypeNames(root);
         var rewriter = new SealClassesRewriter(baseClasses);
 
         return (CompilationUnitSyntax) rewriter.Visit(root);
