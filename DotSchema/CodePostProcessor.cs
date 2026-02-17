@@ -2,6 +2,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
+using DotSchema.Rewriters;
+
 namespace DotSchema;
 
 /// <summary>
@@ -122,32 +124,10 @@ public static class CodePostProcessor
     private static CompilationUnitSyntax MakeClassesSealed(CompilationUnitSyntax root)
     {
         // Find all base class names (classes that are inherited from)
-        // Handles both simple names (BaseClass) and generic names (BaseClass<T>)
-        var baseClasses = root.DescendantNodes()
-                              .OfType<ClassDeclarationSyntax>()
-                              .Where(c => c.BaseList != null)
-                              .SelectMany(c => c.BaseList!.Types)
-                              .Select(t => GetBaseTypeName(t.Type))
-                              .OfType<string>()
-                              .ToHashSet();
-
+        var baseClasses = SyntaxHelpers.GetBaseClassNames(root);
         var rewriter = new SealClassesRewriter(baseClasses);
 
         return (CompilationUnitSyntax) rewriter.Visit(root);
-    }
-
-    /// <summary>
-    ///     Extracts the type name from a base type syntax node.
-    ///     Handles both simple names (BaseClass) and generic names (BaseClass&lt;T&gt;).
-    /// </summary>
-    private static string? GetBaseTypeName(TypeSyntax type)
-    {
-        return type switch
-        {
-            IdentifierNameSyntax id => id.Identifier.Text,
-            GenericNameSyntax gen => gen.Identifier.Text,
-            _ => null
-        };
     }
 
     /// <summary>
@@ -162,119 +142,4 @@ public static class CodePostProcessor
 
         return (CompilationUnitSyntax) rewriter.Visit(root);
     }
-
-#region Syntax Rewriters
-
-    /// <summary>
-    ///     Rewriter that removes AdditionalProperties field and property from classes.
-    ///     NJsonSchema generates these by default, but they add unnecessary complexity to DTOs.
-    /// </summary>
-    private sealed class RemoveAdditionalPropertiesRewriter : CSharpSyntaxRewriter
-    {
-        public override SyntaxNode? VisitFieldDeclaration(FieldDeclarationSyntax node)
-        {
-            // Remove _additionalProperties field
-            if (node.Declaration.Variables.Any(v => v.Identifier.Text == "_additionalProperties"))
-            {
-                return null;
-            }
-
-            return base.VisitFieldDeclaration(node);
-        }
-
-        public override SyntaxNode? VisitPropertyDeclaration(PropertyDeclarationSyntax node)
-        {
-            // Remove AdditionalProperties property
-            if (node.Identifier.Text == "AdditionalProperties")
-            {
-                return null;
-            }
-
-            return base.VisitPropertyDeclaration(node);
-        }
-    }
-
-    /// <summary>
-    ///     Rewriter that converts partial classes to sealed classes.
-    ///     Base classes (those inherited from) are preserved as non-sealed to allow inheritance.
-    /// </summary>
-    private sealed class SealClassesRewriter(IReadOnlySet<string> baseClasses) : CSharpSyntaxRewriter
-    {
-        public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node)
-        {
-            var visited = (ClassDeclarationSyntax) base.VisitClassDeclaration(node)!;
-
-            // Don't seal base classes
-            if (baseClasses.Contains(visited.Identifier.Text))
-            {
-                return visited;
-            }
-
-            // Check if already sealed
-            if (visited.Modifiers.Any(SyntaxKind.SealedKeyword))
-            {
-                return visited;
-            }
-
-            // Remove partial modifier and add sealed
-            var newModifiers = visited.Modifiers
-                                      .Where(m => !m.IsKind(SyntaxKind.PartialKeyword))
-                                      .ToList();
-
-            // Find position to insert sealed (after public/internal/etc.)
-            var insertIndex = 0;
-
-            for (var i = 0; i < newModifiers.Count; i++)
-            {
-                if (newModifiers[i].IsKind(SyntaxKind.PublicKeyword)
-                    || newModifiers[i].IsKind(SyntaxKind.InternalKeyword)
-                    || newModifiers[i].IsKind(SyntaxKind.PrivateKeyword)
-                    || newModifiers[i].IsKind(SyntaxKind.ProtectedKeyword))
-                {
-                    insertIndex = i + 1;
-                }
-            }
-
-            newModifiers.Insert(insertIndex, SyntaxFactory.Token(SyntaxKind.SealedKeyword));
-
-            return visited.WithModifiers(SyntaxFactory.TokenList(newModifiers));
-        }
-    }
-
-    /// <summary>
-    ///     Rewriter that adds an interface to a specific class by name.
-    ///     Used to add marker interfaces (e.g., IConfig) to variant root types.
-    /// </summary>
-    private sealed class AddInterfaceRewriter(string className, string interfaceName) : CSharpSyntaxRewriter
-    {
-        public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node)
-        {
-            var visited = (ClassDeclarationSyntax) base.VisitClassDeclaration(node)!;
-
-            if (visited.Identifier.Text != className)
-            {
-                return visited;
-            }
-
-            // Create the interface type
-            var interfaceType = SyntaxFactory.SimpleBaseType(SyntaxFactory.IdentifierName(interfaceName));
-
-            // Add to base list
-            if (visited.BaseList == null)
-            {
-                // No existing base list - create one
-                var baseList = SyntaxFactory.BaseList(
-                    SyntaxFactory.SingletonSeparatedList<BaseTypeSyntax>(interfaceType));
-
-                return visited.WithBaseList(baseList);
-            }
-
-            // Existing base list - prepend interface
-            var newTypes = visited.BaseList.Types.Insert(0, interfaceType);
-
-            return visited.WithBaseList(visited.BaseList.WithTypes(newTypes));
-        }
-    }
-
-#endregion
 }
