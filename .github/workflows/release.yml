@@ -79,11 +79,6 @@ jobs:
           Compress-Archive -Path artifacts/osx-x64/DotSchema -DestinationPath artifacts/dotschema-osx-x64-${{ steps.tag.outputs.tag }}.zip
           Compress-Archive -Path artifacts/osx-arm64/DotSchema -DestinationPath artifacts/dotschema-osx-arm64-${{ steps.tag.outputs.tag }}.zip
 
-      - name: Push to Azure Artifacts
-        run: |
-          dotnet nuget add source https://pkgs.dev.azure.com/gauss-dev/Magnet/_packaging/Engineering/nuget/v3/index.json --name AzureArtifacts --username az --password ${{ secrets.AZURE_ARTIFACTS_PAT }} --store-password-in-clear-text
-          dotnet nuget push ./artifacts/*.nupkg --source AzureArtifacts --api-key az
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
