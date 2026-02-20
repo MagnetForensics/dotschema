@@ -45,6 +45,10 @@ public sealed class CleanTypeNameGenerator : ITypeNameGenerator
         // Remove any remaining underscores
         name = name.Replace("_", "");
 
+        // Remove generic type syntax which is invalid in C# type names
+        // e.g., "ParsedFileOutput<HostsFile>" -> "ParsedFileOutputHostsFile"
+        name = name.Replace("<", "").Replace(">", "");
+
         // Rename root type to "{Variant}{RootTypeName}" if variant is specified
         if (name == _rootTypeName && !string.IsNullOrEmpty(_variant))
         {

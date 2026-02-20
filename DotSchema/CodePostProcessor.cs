@@ -91,6 +91,8 @@ public static class CodePostProcessor
 
     /// <summary>
     ///     Removes types (classes and enums) by name from the syntax tree.
+    ///     This method works by reconstructing the namespace's members list rather than using
+    ///     RemoveNodes, which can cause structural issues when removing many types at once.
     /// </summary>
     private static CompilationUnitSyntax RemoveTypes(CompilationUnitSyntax root, IReadOnlySet<string> typeNames)
     {
@@ -99,13 +101,67 @@ public static class CodePostProcessor
             return root;
         }
 
-        var typesToRemove = root.DescendantNodes()
-                                .OfType<BaseTypeDeclarationSyntax>()
-                                .Where(t => typeNames.Contains(t.Identifier.Text))
-                                .ToList();
+        // Process each namespace declaration and filter out the types to remove
+        var newMembers = new SyntaxList<MemberDeclarationSyntax>();
 
-        return root.RemoveNodes(typesToRemove, SyntaxRemoveOptions.KeepNoTrivia)
-               ?? root;
+        foreach (var member in root.Members)
+        {
+            if (member is BaseNamespaceDeclarationSyntax namespaceDecl)
+            {
+                // Filter the namespace members
+                var filteredMembers = FilterNamespaceMembers(namespaceDecl.Members, typeNames);
+                var newNamespace = namespaceDecl.WithMembers(filteredMembers);
+                newMembers = newMembers.Add(newNamespace);
+            }
+            else if (member is BaseTypeDeclarationSyntax typeDecl)
+            {
+                // Top-level type (outside namespace) - filter if needed
+                if (!typeNames.Contains(typeDecl.Identifier.Text))
+                {
+                    newMembers = newMembers.Add(member);
+                }
+            }
+            else
+            {
+                // Keep other member types (e.g., global using directives)
+                newMembers = newMembers.Add(member);
+            }
+        }
+
+        return root.WithMembers(newMembers);
+    }
+
+    /// <summary>
+    ///     Filters namespace members to remove types with the specified names.
+    /// </summary>
+    private static SyntaxList<MemberDeclarationSyntax> FilterNamespaceMembers(
+        SyntaxList<MemberDeclarationSyntax> members,
+        IReadOnlySet<string> typeNames)
+    {
+        var filteredMembers = new SyntaxList<MemberDeclarationSyntax>();
+
+        foreach (var member in members)
+        {
+            if (member is BaseTypeDeclarationSyntax typeDecl)
+            {
+                if (!typeNames.Contains(typeDecl.Identifier.Text))
+                {
+                    filteredMembers = filteredMembers.Add(member);
+                }
+            }
+            else if (member is BaseNamespaceDeclarationSyntax nestedNamespace)
+            {
+                // Recursively filter nested namespaces
+                var filtered = FilterNamespaceMembers(nestedNamespace.Members, typeNames);
+                filteredMembers = filteredMembers.Add(nestedNamespace.WithMembers(filtered));
+            }
+            else
+            {
+                filteredMembers = filteredMembers.Add(member);
+            }
+        }
+
+        return filteredMembers;
     }
 
     /// <summary>
