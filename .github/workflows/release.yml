@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -19,21 +19,21 @@ jobs:
       - name: Generate tag
         id: tag
         run: |
-          $date = Get-Date -Format "yyyy.MM.dd"
-          $baseTag = "v$date"
-          $counter = 0
-          $tag = $baseTag
+          date=$(date +%Y.%m.%d)
+          base_tag="v$date"
+          counter=0
+          tag="$base_tag"
 
-          while (git tag -l $tag) {
-            $counter++
-            $tag = "$baseTag.$counter"
-          }
+          while git tag -l "$tag" | grep -q .; do
+            counter=$((counter + 1))
+            tag="$base_tag.$counter"
+          done
 
           # Extract version without 'v' prefix for NuGet
-          $version = $tag.TrimStart('v')
+          version="${tag#v}"
 
-          echo "tag=$tag" >> $env:GITHUB_OUTPUT
-          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Generated tag: $tag (version: $version)"
 
       - name: Create and push tag
@@ -74,10 +74,11 @@ jobs:
 
       - name: Zip artifacts
         run: |
-          Compress-Archive -Path artifacts/win-x64/DotSchema.exe -DestinationPath artifacts/dotschema-win-x64-${{ steps.tag.outputs.tag }}.zip
-          Compress-Archive -Path artifacts/linux-x64/DotSchema -DestinationPath artifacts/dotschema-linux-x64-${{ steps.tag.outputs.tag }}.zip
-          Compress-Archive -Path artifacts/osx-x64/DotSchema -DestinationPath artifacts/dotschema-osx-x64-${{ steps.tag.outputs.tag }}.zip
-          Compress-Archive -Path artifacts/osx-arm64/DotSchema -DestinationPath artifacts/dotschema-osx-arm64-${{ steps.tag.outputs.tag }}.zip
+          chmod +x artifacts/linux-x64/dotschema artifacts/osx-x64/dotschema artifacts/osx-arm64/dotschema
+          cd artifacts/win-x64 && zip ../dotschema-win-x64-${{ steps.tag.outputs.tag }}.zip dotschema.exe && cd ../..
+          cd artifacts/linux-x64 && zip ../dotschema-linux-x64-${{ steps.tag.outputs.tag }}.zip dotschema && cd ../..
+          cd artifacts/osx-x64 && zip ../dotschema-osx-x64-${{ steps.tag.outputs.tag }}.zip dotschema && cd ../..
+          cd artifacts/osx-arm64 && zip ../dotschema-osx-arm64-${{ steps.tag.outputs.tag }}.zip dotschema && cd ../..
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
