@@ -9,6 +9,7 @@
 
         <!-- NuGet package settings -->
         <PackAsTool>true</PackAsTool>
+        <AssemblyName>dotschema</AssemblyName>
         <ToolCommandName>dotschema</ToolCommandName>
         <PackageId>DotSchema</PackageId>
         <Version>1.0.0</Version>
