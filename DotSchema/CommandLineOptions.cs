@@ -68,6 +68,12 @@ public sealed record GenerateOptions
         HelpText = "Preview what would be generated without writing files.")]
     public bool DryRun { get; init; } = false;
 
+    [Option(
+        "fluent-builders",
+        Default = false,
+        HelpText = "Generate fluent builder extension methods for Config classes.")]
+    public bool FluentBuilders { get; init; } = false;
+
     /// <summary>
     ///     Gets whether to generate the marker interface.
     /// </summary>
@@ -96,5 +102,8 @@ public enum GenerationMode
     Shared,
 
     /// <summary>Generate only types unique to the specified variant.</summary>
-    Variant
+    Variant,
+
+    /// <summary>Generate a JSON manifest mapping schema fields to C# type names per variant.</summary>
+    Manifest
 }

@@ -342,4 +342,84 @@ public class CodePostProcessorTests
         // NormalType should be sealed
         Assert.Contains("public sealed class NormalType", result);
     }
+
+    [Fact]
+    public void Process_ConfigClass_RemovesConstructorAndAddsInitProperties()
+    {
+        var code = """
+            namespace Test;
+
+            public partial class WindowsConfig
+            {
+                [System.Text.Json.Serialization.JsonConstructor]
+                public WindowsConfig(SomeType @network, SomeType @sysInfo)
+                {
+                    this.Network = @network;
+                    this.SysInfo = @sysInfo;
+                }
+
+                [System.Text.Json.Serialization.JsonPropertyName("network")]
+                public SomeType Network { get; }
+
+                [System.Text.Json.Serialization.JsonPropertyName("sys_info")]
+                public SomeType SysInfo { get; }
+            }
+            """;
+
+        var result = CodePostProcessor.Process(
+            code,
+            GenerationMode.All,
+            "",
+            EmptySet,
+            EmptySet,
+            EmptySet,
+            "Config");
+
+        // Constructor should be removed
+        Assert.DoesNotContain("JsonConstructor", result);
+        Assert.DoesNotContain("@network", result);
+        Assert.DoesNotContain("@sysInfo", result);
+
+        // Properties should be nullable with set and default null
+        Assert.Contains("SomeType?", result);
+        Assert.Contains("set;", result);
+        Assert.Contains("= null", result);
+    }
+
+    [Fact]
+    public void Process_NonConfigClass_KeepsConstructor()
+    {
+        var code = """
+            namespace Test;
+
+            public partial class SomeOtherType
+            {
+                [System.Text.Json.Serialization.JsonConstructor]
+                public SomeOtherType(string @name, int @value)
+                {
+                    this.Name = @name;
+                    this.Value = @value;
+                }
+
+                public string Name { get; }
+                public int Value { get; }
+            }
+            """;
+
+        var result = CodePostProcessor.Process(
+            code,
+            GenerationMode.All,
+            "",
+            EmptySet,
+            EmptySet,
+            EmptySet,
+            "Config");
+
+        // Constructor should remain
+        Assert.Contains("@name", result);
+        Assert.Contains("@value", result);
+
+        // No set accessor should be added (non-Config classes keep their constructors)
+        Assert.DoesNotContain("set;", result);
+    }
 }

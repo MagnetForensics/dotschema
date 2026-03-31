@@ -20,6 +20,12 @@ public static class SchemaGenerator
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
+        // Manifest mode is handled by a separate generator
+        if (options.Mode == GenerationMode.Manifest)
+        {
+            return await ManifestGenerator.RunAsync(options, logger, cancellationToken).ConfigureAwait(false);
+        }
+
         var generatedFiles = new List<string>();
 
         int result;
@@ -129,15 +135,16 @@ public static class SchemaGenerator
         }
 
         // Generate variant-specific types for each variant
+        var variantFiles = new Dictionary<string, string>();
+
         foreach (var variant in variants)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            var variantPath = Path.Combine(outputDir, Constants.GetVariantFileName(variant, rootTypeName));
             var variantOptions = options with
             {
-                Mode = GenerationMode.Variant,
-                Variant = variant,
-                Output = Path.Combine(outputDir, Constants.GetVariantFileName(variant, rootTypeName))
+                Mode = GenerationMode.Variant, Variant = variant, Output = variantPath
             };
 
             result = await GenerateAsync(variantOptions, generatedFiles, logger, cancellationToken)
@@ -146,6 +153,64 @@ public static class SchemaGenerator
             if (result != 0)
             {
                 return result;
+            }
+
+            variantFiles[variant] = variantPath;
+        }
+
+        if (!options.FluentBuilders)
+        {
+            return 0;
+        }
+
+        // Generate fluent builder extensions for each variant
+        var sharedPath = Path.Combine(outputDir, Constants.GetSharedFileName(rootTypeName));
+        var companionSources = new List<string>();
+
+        if (File.Exists(sharedPath))
+        {
+            companionSources.Add(await File.ReadAllTextAsync(sharedPath, cancellationToken).ConfigureAwait(false));
+        }
+
+        foreach (var (variant, variantPath) in variantFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!File.Exists(variantPath))
+            {
+                continue;
+            }
+
+            var variantCode = await File.ReadAllTextAsync(variantPath, cancellationToken).ConfigureAwait(false);
+
+            // Include other variant files as companions (for cross-referenced types)
+            var allCompanions = companionSources
+                                .Concat(
+                                    variantFiles
+                                        .Where(kv => kv.Key != variant && File.Exists(kv.Value))
+                                        .Select(kv => File.ReadAllText(kv.Value)))
+                                .ToList();
+
+            var extensionsCode = FluentBuilderGenerator.Generate(variantCode, allCompanions, options.Namespace);
+
+            if (extensionsCode != null)
+            {
+                var extensionsPath = Path.Combine(
+                    outputDir,
+                    $"{variant}{rootTypeName}Extensions.cs");
+
+                if (options.DryRun)
+                {
+                    logger.LogInformation("[DRY RUN] Would write extensions to: {Path}", extensionsPath);
+                }
+                else
+                {
+                    logger.LogInformation("Writing fluent builder extensions to: {Path}", extensionsPath);
+                    await File.WriteAllTextAsync(extensionsPath, extensionsCode, cancellationToken)
+                              .ConfigureAwait(false);
+
+                    generatedFiles.Add(extensionsPath);
+                }
             }
         }
 

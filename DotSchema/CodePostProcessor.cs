@@ -53,6 +53,7 @@ public static class CodePostProcessor
 
         root = RemoveAdditionalPropertiesBoilerplate(root);
         root = RemoveTypes(root, typesToRemove);
+        root = ConvertOptionalPropertiesToInit(root);
         root = MakeClassesSealed(root);
 
         return root;
@@ -67,6 +68,7 @@ public static class CodePostProcessor
     {
         root = RemoveAdditionalPropertiesBoilerplate(root);
         root = RemoveTypes(root, sharedTypes);
+        root = ConvertOptionalPropertiesToInit(root);
 
         // Add I{RootType} interface to the root variant config class (if enabled)
         if (generateInterface && !string.IsNullOrEmpty(variant))
@@ -84,6 +86,7 @@ public static class CodePostProcessor
     private static CompilationUnitSyntax CleanupAllCode(CompilationUnitSyntax root)
     {
         root = RemoveAdditionalPropertiesBoilerplate(root);
+        root = ConvertOptionalPropertiesToInit(root);
         root = MakeClassesSealed(root);
 
         return root;
@@ -162,6 +165,17 @@ public static class CodePostProcessor
         }
 
         return filteredMembers;
+    }
+
+    /// <summary>
+    ///     Converts nullable constructor parameters to init-only properties with default null values.
+    ///     This enables object initializer syntax instead of massive positional constructors.
+    /// </summary>
+    private static CompilationUnitSyntax ConvertOptionalPropertiesToInit(CompilationUnitSyntax root)
+    {
+        var rewriter = new OptionalPropertiesToInitRewriter();
+
+        return (CompilationUnitSyntax) rewriter.Visit(root);
     }
 
     /// <summary>
